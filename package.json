@@ -9,8 +9,7 @@
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "song-agent": "ts-node examples/song-agent.ts"
+    "start": "node dist/index.js"
   },
   "keywords": [
     "ai",
