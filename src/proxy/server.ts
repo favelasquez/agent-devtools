@@ -3,6 +3,30 @@ import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middlewar
 import { broadcast } from '../events/broadcaster';
 import { parseAnthropicEvent, parseAnthropicSSE } from './parser';
 
+function parseRequestBody(body: unknown): any {
+  if (!body) return {};
+  if (Buffer.isBuffer(body)) {
+    const text = body.toString('utf8').trim();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+  if (typeof body === 'string') {
+    const text = body.trim();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+  if (typeof body === 'object') return body;
+  return {};
+}
+
 export async function startProxy(port: number): Promise<void> {
   const app = express();
 
@@ -18,15 +42,23 @@ export async function startProxy(port: number): Promise<void> {
       on: {
         proxyReq: (proxyReq, req: any) => {
           // Re-attach raw body if present
-          if (req.body && req.body.length) {
-            proxyReq.setHeader('Content-Length', req.body.length);
-            proxyReq.write(req.body);
+          if (req.body) {
+            const bodyBuffer = Buffer.isBuffer(req.body)
+              ? req.body
+              : typeof req.body === 'string'
+                ? Buffer.from(req.body)
+                : null;
+
+            if (bodyBuffer && bodyBuffer.length) {
+              proxyReq.setHeader('Content-Length', bodyBuffer.length);
+              proxyReq.write(bodyBuffer);
+            }
           }
         },
         proxyRes: responseInterceptor(async (responseBuffer, proxyRes, req: any) => {
           try {
             const contentType = proxyRes.headers['content-type'] ?? '';
-            const requestBody = req.body ? JSON.parse(req.body.toString()) : {};
+            const requestBody = parseRequestBody(req.body);
             const statusCode = proxyRes.statusCode ?? 200;
             let event;
 
